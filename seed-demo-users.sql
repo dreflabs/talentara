@@ -1,0 +1,127 @@
+-- ========================================
+-- TALENTARA - Demo Users Seed Script
+-- ========================================
+-- Run this in your Supabase SQL Editor
+-- This will create demo users for testing
+
+-- NOTE: You need to create these users through Supabase Auth first
+-- or use the registration API endpoint
+
+-- DEMO USERS CREDENTIALS:
+-- 1. Talent Demo
+--    Email: talent@demo.com
+--    Password: Demo1234!
+--
+-- 2. Client Demo
+--    Email: client@demo.com
+--    Password: Demo1234!
+
+-- ========================================
+-- INSTRUCTIONS:
+-- ========================================
+-- Option 1: Use Registration API (Recommended)
+-- curl -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d '{"email":"talent@demo.com","password":"Demo1234!","full_name":"Demo Talent","phone":"081234567890","role":"talent"}'
+-- curl -X POST http://localhost:3000/api/auth/register -H "Content-Type: application/json" -d '{"email":"client@demo.com","password":"Demo1234!","full_name":"Demo Company","phone":"081234567891","role":"client"}'
+
+-- Option 2: Create manually in Supabase Dashboard
+-- 1. Go to: Authentication > Users
+-- 2. Click "Add user"
+-- 3. Add the emails above with passwords
+-- 4. Then run the SQL below to create profiles
+
+-- ========================================
+-- DEMO JOB POSTINGS (Run after users exist)
+-- ========================================
+
+-- First, get the client user ID
+-- Replace 'YOUR_CLIENT_UUID_HERE' with actual UUID from auth.users table
+
+-- INSERT INTO jobs (
+--   client_id,
+--   title,
+--   description,
+--   category,
+--   job_type,
+--   city,
+--   province,
+--   location_details,
+--   start_date,
+--   end_date,
+--   start_time,
+--   end_time,
+--   daily_rate,
+--   slots,
+--   requirements,
+--   dress_code,
+--   benefits,
+--   status
+-- ) VALUES
+-- -- Job 1: SPG Event
+-- (
+--   'YOUR_CLIENT_UUID_HERE',
+--   'SPG Event Mall Central Park Jakarta',
+--   'Dicari SPG untuk event promosi produk elektronik di Mall Central Park Jakarta. Kandidat harus berpenampilan menarik, komunikatif, dan berpengalaman minimal 1 tahun di bidang SPG.',
+--   'spg',
+--   'single_day',
+--   'Jakarta',
+--   'DKI Jakarta',
+--   'Mall Central Park, Lt. 3 Atrium',
+--   '2026-02-20',
+--   '2026-02-20',
+--   '09:00',
+--   '17:00',
+--   200000,
+--   10,
+--   E'- Tinggi minimal 165cm\n- Berpenampilan menarik\n- Komunikatif\n- Berpengalaman minimal 1 tahun',
+--   'Kemeja putih, celana hitam, sepatu formal',
+--   'Makan siang, transport',
+--   'open'
+-- ),
+-- -- Job 2: Usher Wedding
+-- (
+--   'YOUR_CLIENT_UUID_HERE',
+--   'Usher Acara Pernikahan - Hotel Mulia',
+--   'Dibutuhkan usher untuk acara pernikahan di Hotel Mulia Jakarta. Kandidat harus ramah, sopan, dan dapat bekerja dalam tim.',
+--   'usher',
+--   'single_day',
+--   'Jakarta',
+--   'DKI Jakarta',
+--   'Hotel Mulia Senayan, Ballroom 3',
+--   '2026-03-05',
+--   '2026-03-05',
+--   '14:00',
+--   '22:00',
+--   150000,
+--   5,
+--   E'- Tinggi minimal 170cm (pria) / 160cm (wanita)\n- Berpenampilan rapi\n- Ramah dan sopan\n- Dapat bekerja dalam tim',
+--   'Batik formal (disediakan)',
+--   'Makan malam, transport, sertifikat',
+--   'open'
+-- ),
+-- -- Job 3: SPG Product Launch
+-- (
+--   'YOUR_CLIENT_UUID_HERE',
+--   'SPG Product Launch - Kosmetik Brand',
+--   'Dibutuhkan SPG untuk product launch brand kosmetik ternama. Event berlangsung 3 hari di mall-mall besar Jakarta.',
+--   'spg',
+--   'multiple_days',
+--   'Jakarta',
+--   'DKI Jakarta',
+--   'Grand Indonesia, Plaza Senayan, Pacific Place',
+--   '2026-03-10',
+--   '2026-03-12',
+--   '10:00',
+--   '20:00',
+--   250000,
+--   15,
+--   E'- Wanita, usia 20-28 tahun\n- Tinggi minimal 165cm\n- Penampilan menarik dan fashionable\n- Berpengalaman di bidang beauty/cosmetics\n- Komunikatif dan percaya diri',
+--   'Outfit disediakan oleh brand',
+--   'Makan siang & malam, transport, bonus penjualan, produk sample',
+--   'open'
+-- );
+
+-- ========================================
+-- Quick test query to verify data
+-- ========================================
+-- SELECT email, role, full_name FROM profiles WHERE email LIKE '%demo.com';
+-- SELECT title, category, city, daily_rate FROM jobs WHERE status = 'open' LIMIT 5;

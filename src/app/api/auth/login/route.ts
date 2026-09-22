@@ -1,9 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validations/auth";
 import { NextResponse } from "next/server";
+import { rateLimiters, getClientIp } from "@/lib/rate-limit";
+import { logApiRequest, logApiError, logWarning } from "@/lib/logger";
+import { sanitizeEmail } from "@/lib/sanitize";
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request);
+
   try {
+    // Rate limiting: 5 login attempts per minute per IP
+    const rateLimitResult = await rateLimiters.auth(`login:${clientIp}`);
+    if (!rateLimitResult.success) {
+      logWarning("Rate limit exceeded for login", { ip: clientIp });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "RATE_LIMIT_EXCEEDED",
+          message: "Terlalu banyak percobaan login. Silakan coba lagi nanti.",
+          retryAfter: Math.ceil((rateLimitResult.reset - Date.now()) / 1000)
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
 
     // Validate input
@@ -20,15 +40,20 @@ export async function POST(request: Request) {
     }
 
     const validated = result.data;
+
+    // Sanitize email input
+    const sanitizedEmail = sanitizeEmail(validated.email);
+
     const supabase = await createClient();
 
     // Sign in with email and password
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: validated.email,
+      email: sanitizedEmail,
       password: validated.password,
     });
 
     if (authError) {
+      logWarning("Failed login attempt", { email: sanitizedEmail, ip: clientIp });
       return NextResponse.json(
         { success: false, error: "INVALID_CREDENTIALS", message: "Email atau password salah" },
         { status: 401 }
@@ -49,6 +74,8 @@ export async function POST(request: Request) {
       .eq("id", authData.user.id)
       .single();
 
+    logApiRequest("POST", "/api/auth/login", authData.user.id, clientIp);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -64,7 +91,7 @@ export async function POST(request: Request) {
       message: "Login berhasil",
     });
   } catch (error) {
-    console.error("Login error:", error);
+    logApiError("POST", "/api/auth/login", error, undefined, clientIp);
     return NextResponse.json(
       { success: false, error: "INTERNAL_ERROR", message: "Terjadi kesalahan server" },
       { status: 500 }

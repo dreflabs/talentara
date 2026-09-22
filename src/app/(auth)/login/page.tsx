@@ -3,8 +3,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Masuk - TALENTARA",
-  description: "Masuk ke akun TALENTARA Anda",
+  title: "Masuk",
+  description: "Masuk ke akun TALENTARA Anda. Akses dashboard, lamar lowongan kerja SPG & Usher, dan kelola profil talent Anda.",
+  openGraph: {
+    title: "Masuk - TALENTARA",
+    description: "Masuk ke akun TALENTARA Anda untuk mengakses lowongan kerja SPG & Usher terbaru.",
+    url: `${process.env.NEXT_PUBLIC_APP_URL}/login`,
+  },
+  robots: {
+    index: false, // Don't index login page
+    follow: true,
+  },
+  alternates: {
+    canonical: '/login',
+  },
 };
 
 export default function LoginPage() {

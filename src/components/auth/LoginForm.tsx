@@ -7,16 +7,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
-import { useAuth } from "@/hooks/useAuth";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
-  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -29,18 +29,73 @@ export function LoginForm() {
   const onSubmit = async (data: LoginInput) => {
     try {
       setServerError(null);
-      const result = await login(data.email, data.password);
 
-      // Redirect based on role
-      if (result.data?.user?.role === "client") {
+      // Sign in via browser Supabase client — sets auth cookies automatically
+      const supabase = createClient();
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (authError) {
+        // Check if error is due to unverified email
+        if (authError.message.includes("Email not confirmed")) {
+          setUnverifiedEmail(data.email);
+          setServerError("Email belum diverifikasi. Silakan cek inbox Anda atau kirim ulang link verifikasi.");
+        } else {
+          setServerError("Email atau password salah");
+        }
+        return;
+      }
+
+      if (!authData.user) {
+        setServerError("Gagal login. Silakan coba lagi.");
+        return;
+      }
+
+      // Fetch profile to determine role for redirect
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user.id)
+        .single();
+
+      const role = profile?.role;
+      if (role === "client") {
         router.push("/company/dashboard");
+      } else if (role === "admin") {
+        router.push("/admin");
       } else {
         router.push("/dashboard");
       }
+      router.refresh();
     } catch (error) {
       setServerError(
         error instanceof Error ? error.message : "Terjadi kesalahan. Silakan coba lagi."
       );
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: unverifiedEmail }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setServerError("Email verifikasi telah dikirim. Silakan cek inbox Anda.");
+        setUnverifiedEmail(null);
+      } else {
+        setServerError(data.message || "Gagal mengirim email verifikasi");
+      }
+    } catch (error) {
+      setServerError("Terjadi kesalahan. Silakan coba lagi.");
     }
   };
 
@@ -49,6 +104,15 @@ export function LoginForm() {
       {serverError && (
         <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
           {serverError}
+          {unverifiedEmail && (
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              className="mt-2 text-xs text-brand-600 hover:underline block"
+            >
+              Kirim ulang link verifikasi
+            </button>
+          )}
         </div>
       )}
 

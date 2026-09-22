@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COMMON_PASSWORDS } from "@/lib/constants";
 
 export const registerSchema = z.object({
   email: z
@@ -8,8 +9,19 @@ export const registerSchema = z.object({
   password: z
     .string()
     .min(8, "Password minimal 8 karakter")
+    .max(128, "Password maksimal 128 karakter")
+    .regex(/[a-z]/, "Password harus mengandung huruf kecil")
     .regex(/[A-Z]/, "Password harus mengandung huruf besar")
-    .regex(/[0-9]/, "Password harus mengandung angka"),
+    .regex(/[0-9]/, "Password harus mengandung angka")
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password harus mengandung karakter khusus")
+    .refine(
+      (password) => !(COMMON_PASSWORDS as readonly string[]).includes(password.toLowerCase()),
+      "Password terlalu umum. Gunakan kombinasi yang lebih unik"
+    )
+    .refine(
+      (password) => !/(.)\1{2,}/.test(password),
+      "Password tidak boleh mengandung 3 karakter berulang berturut-turut"
+    ),
   confirmPassword: z
     .string()
     .min(1, "Konfirmasi password wajib diisi"),

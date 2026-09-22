@@ -1,25 +1,114 @@
 "use client";
 
-import { Briefcase, Users, Wallet, Calendar, ArrowRight, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Briefcase, Users, Wallet, Calendar, ArrowRight, Plus, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils/format";
 
-// Placeholder data — akan diganti dengan data real dari Supabase
-const stats = [
-  { label: "Lowongan Aktif", value: "0", icon: Briefcase, color: "text-brand-500 bg-brand-50" },
-  { label: "Total Booking", value: "0", icon: Calendar, color: "text-accent-purple-500 bg-accent-purple-50" },
-  { label: "Total Pengeluaran", value: formatCurrency(0), icon: Wallet, color: "text-green-500 bg-green-50" },
-  { label: "Talent Dipakai", value: "0", icon: Users, color: "text-yellow-500 bg-yellow-50" },
-];
+interface CompanyStats {
+  activeJobs: number;
+  totalApplications: number;
+  acceptedApplications: number;
+  totalExpenses: number;
+  talentsHired: number;
+}
 
-const recentBookings: { code: string; talent: string; date: string; status: string; amount: number }[] = [];
+interface Application {
+  id: string;
+  talent: {
+    profile: {
+      full_name: string;
+    };
+  };
+  job: {
+    title: string;
+  };
+  status: string;
+  created_at: string;
+}
 
-const activeJobs: { title: string; slots: string; applicants: number; status: string }[] = [];
+interface Job {
+  id: string;
+  title: string;
+  slots: number;
+  slots_filled: number;
+  status: string;
+}
 
 export default function ClientDashboardPage() {
+  const [stats, setStats] = useState<CompanyStats>({
+    activeJobs: 0,
+    totalApplications: 0,
+    acceptedApplications: 0,
+    totalExpenses: 0,
+    talentsHired: 0,
+  });
+  const [recentApplications, setRecentApplications] = useState<Application[]>([]);
+  const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch company stats
+        const statsRes = await fetch('/api/companies/stats');
+        if (statsRes.ok) {
+          const data = await statsRes.json();
+          setStats(data.stats);
+        }
+
+        // Fetch recent applications
+        const appsRes = await fetch('/api/applications?limit=5');
+        if (appsRes.ok) {
+          const data = await appsRes.json();
+          setRecentApplications(data.data || []);
+        }
+
+        // Fetch active jobs
+        const jobsRes = await fetch('/api/jobs?status=open&limit=5');
+        if (jobsRes.ok) {
+          const data = await jobsRes.json();
+          setActiveJobs(data.data || []);
+        }
+      } catch (error) {
+        setError('Gagal memuat data dashboard');
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+        <p className="ml-2 text-muted-foreground">Memuat dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <p className="text-destructive mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>Coba Lagi</Button>
+      </div>
+    );
+  }
+
+  const statsDisplay = [
+    { label: "Lowongan Aktif", value: String(stats.activeJobs), icon: Briefcase, color: "text-brand-500 bg-brand-50" },
+    { label: "Total Aplikasi", value: String(stats.totalApplications), icon: Calendar, color: "text-accent-purple-500 bg-accent-purple-50" },
+    { label: "Total Pengeluaran", value: formatCurrency(stats.totalExpenses), icon: Wallet, color: "text-green-500 bg-green-50" },
+    { label: "Talent Dipakai", value: String(stats.talentsHired), icon: Users, color: "text-yellow-500 bg-yellow-50" },
+  ];
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -43,7 +132,7 @@ export default function ClientDashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsDisplay.map((stat) => (
           <Card key={stat.label}>
             <CardContent className="flex items-center gap-4 p-4">
               <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.color}`}>
@@ -70,25 +159,34 @@ export default function ClientDashboardPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            {recentBookings.length === 0 ? (
+            {recentApplications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <Calendar className="mb-3 h-10 w-10 text-gray-300" />
-                <p className="text-sm text-muted-foreground">Belum ada booking</p>
-                <p className="text-xs text-muted-foreground">Buat lowongan atau cari talent untuk mulai</p>
+                <p className="text-sm text-muted-foreground">Belum ada aplikasi</p>
+                <p className="text-xs text-muted-foreground">Buat lowongan untuk mulai menerima aplikasi</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {recentBookings.map((booking) => (
-                  <div key={booking.code} className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <p className="text-sm font-medium">{booking.talent}</p>
-                      <p className="text-xs text-muted-foreground">{booking.code} &middot; {booking.date}</p>
+                {recentApplications.map((application) => (
+                  <Link key={application.id} href={`/company/applications/${application.id}`}>
+                    <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                      <div>
+                        <p className="text-sm font-medium">{application.talent?.profile?.full_name || 'Talent'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {application.job?.title} &middot; {new Date(application.created_at).toLocaleDateString('id-ID')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={
+                          application.status === 'accepted' ? 'default' :
+                          application.status === 'pending' ? 'secondary' :
+                          application.status === 'rejected' ? 'destructive' : 'outline'
+                        }>
+                          {application.status}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="secondary">{booking.status}</Badge>
-                      <p className="mt-1 text-sm font-medium">{formatCurrency(booking.amount)}</p>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -117,13 +215,17 @@ export default function ClientDashboardPage() {
             ) : (
               <div className="space-y-3">
                 {activeJobs.map((job) => (
-                  <div key={job.title} className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <p className="text-sm font-medium">{job.title}</p>
-                      <p className="text-xs text-muted-foreground">{job.slots} &middot; {job.applicants} pelamar</p>
+                  <Link key={job.id} href={`/company/jobs/${job.id}`}>
+                    <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                      <div>
+                        <p className="text-sm font-medium">{job.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {job.slots_filled}/{job.slots} terisi
+                        </p>
+                      </div>
+                      <Badge variant="outline">{job.status}</Badge>
                     </div>
-                    <Badge variant="outline">{job.status}</Badge>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

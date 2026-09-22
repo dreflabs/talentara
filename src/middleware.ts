@@ -1,13 +1,19 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { validateCSRF } from "@/lib/csrf";
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = [
   "/",
   "/login",
   "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
   "/api/auth/register",
   "/api/auth/login",
+  "/api/auth/forgot-password",
+  "/api/auth/resend-verification",
   "/api/auth/callback",
   "/api/payments/webhook",
 ];
@@ -21,8 +27,53 @@ const CLIENT_ROUTES = ["/company"];
 // Routes only for admin role
 const ADMIN_ROUTES = ["/admin"];
 
+// Allowed redirect paths (whitelist for security)
+const ALLOWED_REDIRECTS = [
+  "/dashboard",
+  "/company/dashboard",
+  "/admin/dashboard",
+  "/profile",
+  "/company",
+  "/jobs",
+  "/applications",
+  "/bookings",
+];
+
+/**
+ * Validates and sanitizes redirect URL to prevent open redirect attacks
+ */
+function validateRedirectUrl(pathname: string): string {
+  // Check if pathname is in allowed list
+  const isAllowed = ALLOWED_REDIRECTS.some(route =>
+    pathname === route || pathname.startsWith(route + "/")
+  );
+
+  if (!isAllowed) {
+    // Default redirect based on common patterns
+    if (pathname.startsWith("/company")) return "/company/dashboard";
+    if (pathname.startsWith("/admin")) return "/admin/dashboard";
+    return "/dashboard"; // Default for talent
+  }
+
+  return pathname;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // CSRF Protection for API routes (except auth callbacks and webhooks)
+  if (
+    pathname.startsWith("/api") &&
+    !pathname.startsWith("/api/auth/callback") &&
+    !pathname.startsWith("/api/payments/webhook")
+  ) {
+    if (!validateCSRF(request)) {
+      return NextResponse.json(
+        { error: "CSRF validation failed", message: "Invalid request origin" },
+        { status: 403 }
+      );
+    }
+  }
 
   // Allow public routes
   if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
@@ -66,7 +117,9 @@ export async function middleware(request: NextRequest) {
   // Not authenticated — redirect to login
   if (!user) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    // Validate redirect URL to prevent open redirect attacks
+    const safeRedirect = validateRedirectUrl(pathname);
+    loginUrl.searchParams.set("redirect", safeRedirect);
     return NextResponse.redirect(loginUrl);
   }
 

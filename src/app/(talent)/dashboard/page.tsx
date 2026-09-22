@@ -1,48 +1,171 @@
 "use client";
 
-import { Briefcase, Star, Wallet, Calendar, TrendingUp, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Briefcase, Star, Wallet, Calendar, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatsCard, StatsCardSkeleton } from "@/components/shared/StatsCard";
+import { EmptyStateCompact } from "@/components/shared/EmptyState";
 import { formatCurrency } from "@/lib/utils/format";
 
-// Placeholder data — akan diganti dengan data real dari Supabase
-const stats = [
-  { label: "Total Job", value: "0", icon: Briefcase, color: "text-brand-500 bg-brand-50" },
-  { label: "Rating", value: "0.0", icon: Star, color: "text-yellow-500 bg-yellow-50" },
-  { label: "Saldo Wallet", value: formatCurrency(0), icon: Wallet, color: "text-green-500 bg-green-50" },
-  { label: "Booking Aktif", value: "0", icon: Calendar, color: "text-accent-purple-500 bg-accent-purple-50" },
-];
+interface TalentData {
+  jobs_completed: number;
+  ratings_avg: number;
+  ratings_count: number;
+  wallet_balance: number;
+}
 
-const recentBookings: { code: string; company: string; date: string; status: string; amount: number }[] = [];
+interface ProfileData {
+  full_name: string;
+}
 
-const recommendedJobs: { title: string; company: string; city: string; dailyRate: number; category: string }[] = [];
+interface Booking {
+  id: string;
+  job: {
+    title: string;
+    company: {
+      company_name: string;
+    };
+  };
+  created_at: string;
+  status: string;
+}
+
+interface Job {
+  id: string;
+  title: string;
+  city: string;
+  daily_rate: number;
+  category: string;
+  company: {
+    company_name: string;
+  };
+}
 
 export default function TalentDashboardPage() {
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [talent, setTalent] = useState<TalentData | null>(null);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
+  const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([]);
+  const [activeBookingsCount, setActiveBookingsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch profile and talent data
+        const profileRes = await fetch("/api/talents/profile");
+        if (profileRes.ok) {
+          const result = await profileRes.json();
+          setProfile(result.data.profile);
+          setTalent(result.data.talent);
+        }
+
+        // Fetch recent bookings/applications
+        const bookingsRes = await fetch("/api/applications?limit=5");
+        if (bookingsRes.ok) {
+          const bookingsData = await bookingsRes.json();
+          setRecentBookings(bookingsData.data || []);
+        }
+
+        // Fetch active bookings count
+        const activeBookingsRes = await fetch("/api/applications?status=accepted&limit=1");
+        if (activeBookingsRes.ok) {
+          const activeData = await activeBookingsRes.json();
+          setActiveBookingsCount(activeData.pagination?.total || 0);
+        }
+
+        // Fetch recommended jobs
+        const jobsRes = await fetch("/api/jobs?status=open&limit=5");
+        if (jobsRes.ok) {
+          const jobsData = await jobsRes.json();
+          setRecommendedJobs(jobsData.data || []);
+        }
+      } catch (error) {
+        setError("Gagal memuat data dashboard");
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Stats configuration
+  const stats = [
+    {
+      label: "Total Job",
+      value: String(talent?.jobs_completed || 0),
+      icon: Briefcase,
+      iconColor: "text-brand-500",
+      iconBgColor: "bg-brand-50"
+    },
+    {
+      label: "Rating",
+      value: `${(talent?.ratings_avg || 0).toFixed(1)} (${talent?.ratings_count || 0})`,
+      icon: Star,
+      iconColor: "text-yellow-500",
+      iconBgColor: "bg-yellow-50"
+    },
+    {
+      label: "Saldo Wallet",
+      value: formatCurrency(talent?.wallet_balance || 0),
+      icon: Wallet,
+      iconColor: "text-green-500",
+      iconBgColor: "bg-green-50"
+    },
+    {
+      label: "Booking Aktif",
+      value: String(activeBookingsCount),
+      icon: Calendar,
+      iconColor: "text-accent-purple-500",
+      iconBgColor: "bg-accent-purple-50"
+    },
+  ];
+
+  // Error state
+  if (error && !isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <p className="text-destructive mb-4">{error}</p>
+        <Button onClick={() => window.location.reload()}>Coba Lagi</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Talent</h1>
-        <p className="text-muted-foreground">Selamat datang di TALENTARA</p>
+        <p className="text-muted-foreground">
+          Selamat datang, <span className="font-medium text-gray-700">{profile?.full_name || "Talent"}</span>!
+        </p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="text-xl font-bold">{stat.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {isLoading ? (
+          <>
+            {[...Array(4)].map((_, i) => (
+              <StatsCardSkeleton key={i} />
+            ))}
+          </>
+        ) : (
+          stats.map((stat) => (
+            <StatsCard
+              key={stat.label}
+              label={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              iconColor={stat.iconColor}
+              iconBgColor={stat.iconBgColor}
+            />
+          ))
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -58,22 +181,30 @@ export default function TalentDashboardPage() {
           </CardHeader>
           <CardContent>
             {recentBookings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Calendar className="mb-3 h-10 w-10 text-gray-300" />
-                <p className="text-sm text-muted-foreground">Belum ada booking</p>
-                <p className="text-xs text-muted-foreground">Mulai cari lowongan yang sesuai</p>
-              </div>
+              <EmptyStateCompact
+                icon={Calendar}
+                title="Belum ada booking"
+                description="Mulai cari lowongan yang sesuai"
+                action={{ label: "Cari Lowongan", href: "/jobs" }}
+              />
             ) : (
               <div className="space-y-3">
                 {recentBookings.map((booking) => (
-                  <div key={booking.code} className="flex items-center justify-between rounded-lg border p-3">
+                  <div key={booking.id} className="flex items-center justify-between rounded-lg border p-3">
                     <div>
-                      <p className="text-sm font-medium">{booking.company}</p>
-                      <p className="text-xs text-muted-foreground">{booking.code} &middot; {booking.date}</p>
+                      <p className="text-sm font-medium">{booking.job?.title || "Job"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {booking.job?.company?.company_name || "Company"} &middot; {new Date(booking.created_at).toLocaleDateString('id-ID')}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <Badge variant="secondary">{booking.status}</Badge>
-                      <p className="mt-1 text-sm font-medium">{formatCurrency(booking.amount)}</p>
+                      <Badge variant={
+                        booking.status === 'accepted' ? 'default' :
+                        booking.status === 'pending' ? 'secondary' :
+                        booking.status === 'rejected' ? 'destructive' : 'outline'
+                      }>
+                        {booking.status}
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -94,24 +225,26 @@ export default function TalentDashboardPage() {
           </CardHeader>
           <CardContent>
             {recommendedJobs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Briefcase className="mb-3 h-10 w-10 text-gray-300" />
-                <p className="text-sm text-muted-foreground">Belum ada lowongan</p>
-                <p className="text-xs text-muted-foreground">Lowongan baru akan muncul di sini</p>
-              </div>
+              <EmptyStateCompact
+                icon={Briefcase}
+                title="Belum ada lowongan"
+                description="Lowongan baru akan muncul di sini"
+              />
             ) : (
               <div className="space-y-3">
                 {recommendedJobs.map((job) => (
-                  <div key={job.title} className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <p className="text-sm font-medium">{job.title}</p>
-                      <p className="text-xs text-muted-foreground">{job.company} &middot; {job.city}</p>
+                  <Link key={job.id} href={`/jobs/${job.id}`}>
+                    <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-gray-50 transition-colors cursor-pointer">
+                      <div>
+                        <p className="text-sm font-medium">{job.title}</p>
+                        <p className="text-xs text-muted-foreground">{job.company?.company_name || "Company"} &middot; {job.city}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline">{job.category.toUpperCase()}</Badge>
+                        <p className="mt-1 text-sm font-medium text-brand-600">{formatCurrency(job.daily_rate)}/hari</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <Badge variant="outline">{job.category.toUpperCase()}</Badge>
-                      <p className="mt-1 text-sm font-medium text-brand-600">{formatCurrency(job.dailyRate)}/hari</p>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
